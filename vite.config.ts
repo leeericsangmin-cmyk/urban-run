@@ -6,6 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig(() => {
   return {
+    base: './',
     plugins: [
       react(),
       tailwindcss(),
@@ -14,7 +15,7 @@ export default defineConfig(() => {
         injectRegister: null,
         includeAssets: ['apple-touch-icon.png', 'icon.svg'],
         manifest: {
-          id: '/',
+          id: './',
           name: 'Urban Run',
           short_name: 'UrbanRun',
           description: 'Endless sketch street-maze runner. 100% local, zero tracking.',
@@ -23,29 +24,29 @@ export default defineConfig(() => {
           display: 'standalone',
           display_override: ['standalone', 'fullscreen', 'minimal-ui'],
           orientation: 'portrait-primary',
-          start_url: '/',
-          scope: '/',
+          start_url: './',
+          scope: './',
           icons: [
             {
-              src: '/icon.svg',
+              src: './icon.svg',
               sizes: '512x512',
               type: 'image/svg+xml',
               purpose: 'any',
             },
             {
-              src: '/pwa-192x192.png',
+              src: './pwa-192x192.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/pwa-512x512.png',
+              src: './pwa-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/pwa-maskable-512x512.png',
+              src: './pwa-maskable-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',
@@ -56,10 +57,10 @@ export default defineConfig(() => {
               name: 'Start Run',
               short_name: 'Run',
               description: 'Launch Urban Run game immediately',
-              url: '/',
+              url: './',
               icons: [
                 {
-                  src: '/pwa-192x192.png',
+                  src: './pwa-192x192.png',
                   sizes: '192x192',
                 },
               ],
@@ -73,7 +74,7 @@ export default defineConfig(() => {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           globIgnores: ['**/version.json', '**/status.json'],
           navigateFallback: 'index.html',
-          navigateFallbackDenylist: [/^\/(version|status)\.json/i],
+          navigateFallbackDenylist: [/(version|status)\.json/i],
           runtimeCaching: [
             {
               urlPattern: /\/(version|status)\.json(\?.*)?$/i,
