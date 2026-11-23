@@ -1,0 +1,8 @@
+{
+  "name": "Sketch Run: NYC Maze VER 1.5 (Final, Pre-PWA)",
+  "description": "An aerial view stickman runner navigating an NYC city block maze drawn like pencil on paper, dodging obstacles and collecting tokens at continuous pace.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

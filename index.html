@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <title>Urban Run</title>
+    <meta
+      name="description"
+      content="Endless sketch street-maze runner. 100% local, zero tracking."
+    />
+    <meta property="og:title" content="Urban Run" />
+    <meta
+      property="og:description"
+      content="Endless sketch street-maze runner. 100% local, zero tracking."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- PWA & Mobile Web App Meta for True Standalone App Experience -->
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Urban Run" />
+    <meta name="application-name" content="Urban Run" />
+    <meta name="msapplication-starturl" content="/" />
+    <meta name="msapplication-TileColor" content="#ffffff" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512x512.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/pwa-512x512.png" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+
+      // iOS WebKit Standalone Navigation Lock
+      // Keeps internal navigation inside the standalone app window instead of jumping to Safari
+      if (('standalone' in window.navigator) && window.navigator.standalone) {
+        document.addEventListener('click', function(e) {
+          var el = e.target;
+          while (el && el.nodeName !== 'A') {
+            el = el.parentNode;
+          }
+          if (el && el.nodeName === 'A' && el.href && el.href.indexOf(location.host) !== -1) {
+            e.preventDefault();
+            location.href = el.href;
+          }
+        }, false);
+      }
+    </script>
+  </body>
+</html>
