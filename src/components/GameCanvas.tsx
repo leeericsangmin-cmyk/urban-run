@@ -42,6 +42,9 @@ interface GameCanvasProps {
 
 // Measured, responsive running pace across all levels
 const DEFAULT_SPEED = 4.55;
+// Slight speed boost when holding a direction key (desktop) or sliding/holding in a direction (mobile)
+const HOLD_BOOST_MULTIPLIER = 1.22;
+const SWIPE_BOOST_DURATION = 0.45;
 
 export const GameCanvas: React.FC<GameCanvasProps> = ({
   district,
@@ -92,6 +95,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const floatingTextsRef = useRef<FloatingText[]>([]);
   const cameraRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const heldDirectionsRef = useRef<Set<Direction>>(new Set());
+  const touchHeldDirectionRef = useRef<Direction>('NONE');
+  const swipeBoostDirRef = useRef<Direction>('NONE');
+  const swipeBoostTimerRef = useRef<number>(0);
 
   // Bottom pursuit hazard (creeping ink wave / storm)
   const fogYRef = useRef<number>(0);
@@ -148,7 +155,20 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     particlesRef.current = [];
     floatingTextsRef.current = [];
+    heldDirectionsRef.current.clear();
+    touchHeldDirectionRef.current = 'NONE';
+    swipeBoostDirRef.current = 'NONE';
+    swipeBoostTimerRef.current = 0;
   }, [district, effectiveDifficulty, isGuideMode]);
+
+  // Clear active hold/slide boost states whenever paused
+  useEffect(() => {
+    if (isPaused) {
+      heldDirectionsRef.current.clear();
+      touchHeldDirectionRef.current = 'NONE';
+      swipeBoostTimerRef.current = 0;
+    }
+  }, [isPaused]);
 
   // Handle external queued direction from touch D-pad
   useEffect(() => {
@@ -179,45 +199,66 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     p.nextDirection = newDir;
   }, []);
 
-  // Keyboard controls: Arrow keys and WASD
+  // Keyboard controls: Arrow keys and WASD (tap to steer, hold to move slightly faster in that direction)
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      let dir: Direction = 'NONE';
-      switch (e.key) {
+    const keyToDirection = (key: string): Direction => {
+      switch (key) {
         case 'ArrowUp':
         case 'KeyW':
         case 'w':
         case 'W':
-          dir = 'UP';
-          break;
+          return 'UP';
         case 'ArrowDown':
         case 'KeyS':
         case 's':
         case 'S':
-          dir = 'DOWN';
-          break;
+          return 'DOWN';
         case 'ArrowLeft':
         case 'KeyA':
         case 'a':
         case 'A':
-          dir = 'LEFT';
-          break;
+          return 'LEFT';
         case 'ArrowRight':
         case 'KeyD':
         case 'd':
         case 'D':
-          dir = 'RIGHT';
-          break;
-      }
-
-      if (dir !== 'NONE') {
-        e.preventDefault();
-        applyDirection(dir);
+          return 'RIGHT';
+        default:
+          return 'NONE';
       }
     };
 
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const dir = keyToDirection(e.key);
+      if (dir !== 'NONE') {
+        e.preventDefault();
+        heldDirectionsRef.current.add(dir);
+        if (!e.repeat) {
+          applyDirection(dir);
+        }
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const dir = keyToDirection(e.key);
+      if (dir !== 'NONE') {
+        heldDirectionsRef.current.delete(dir);
+      }
+    };
+
+    const handleBlur = () => {
+      heldDirectionsRef.current.clear();
+      touchHeldDirectionRef.current = 'NONE';
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+    };
   }, [applyDirection]);
 
   const handleSwipeTrigger = useCallback(
@@ -241,7 +282,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     [applyDirection, onDirectionInput]
   );
 
-  // Mobile Touch Swipe navigation on canvas (replaces on-screen arrow keys)
+  // Mobile Touch Swipe navigation on canvas (slide up/down/left/right to steer & boost slightly faster)
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length > 0) {
       touchStartRef.current = {
@@ -264,6 +305,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           ? (dx > 0 ? 'RIGHT' : 'LEFT')
           : (dy > 0 ? 'DOWN' : 'UP');
 
+      touchHeldDirectionRef.current = dir;
+      swipeBoostDirRef.current = dir;
+      swipeBoostTimerRef.current = SWIPE_BOOST_DURATION;
       handleSwipeTrigger(dir);
 
       // Re-center coordinates so player can chain turns smoothly in one continuous gesture
@@ -285,9 +329,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           Math.abs(dx) > Math.abs(dy)
             ? (dx > 0 ? 'RIGHT' : 'LEFT')
             : (dy > 0 ? 'DOWN' : 'UP');
+        swipeBoostDirRef.current = dir;
+        swipeBoostTimerRef.current = SWIPE_BOOST_DURATION;
         handleSwipeTrigger(dir);
       }
     }
+    touchHeldDirectionRef.current = 'NONE';
     touchStartRef.current = null;
   };
 
@@ -395,12 +442,23 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       // UPDATE GAME STATE (Pure Math & Physics)
       if (!isPaused && p.hp > 0) {
         if (p.invincibleTimer > 0) p.invincibleTimer = Math.max(0, p.invincibleTimer - dt);
+        if (swipeBoostTimerRef.current > 0) {
+          swipeBoostTimerRef.current = Math.max(0, swipeBoostTimerRef.current - dt);
+        }
+
+        const isDesktopHolding = heldDirectionsRef.current.has(p.direction);
+        const isMobileSliding =
+          touchHeldDirectionRef.current === p.direction ||
+          (swipeBoostTimerRef.current > 0 && swipeBoostDirRef.current === p.direction);
+        const isSpeedBoosting = isDesktopHolding || isMobileSliding;
+        const speedMultiplier = isSpeedBoosting ? HOLD_BOOST_MULTIPLIER : 1.0;
+        p.speedBoostTimer = isSpeedBoosting ? 0.1 : 0;
 
         if (p.slowTimer > 0) {
           p.slowTimer = Math.max(0, p.slowTimer - dt);
-          p.speed = p.baseSpeed * 0.45; // Slow down significantly in/after crowd
+          p.speed = p.baseSpeed * 0.45 * speedMultiplier; // Slow down significantly in/after crowd
         } else {
-          p.speed = p.baseSpeed;
+          p.speed = p.baseSpeed * speedMultiplier;
         }
 
         p.walkCycle += p.speed * 0.18 * frameScale;
