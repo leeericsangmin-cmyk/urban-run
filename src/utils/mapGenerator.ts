@@ -267,9 +267,13 @@ export function generateCityMap(
   }
 
   // A. Avenue patrol vehicles: scaled by difficulty level
+  // River-border avenues (first & last) have denser patrols to discourage edge-hugging;
+  // middle avenues (center of the gridline) have slightly lighter density for cleaner weaving.
   for (let a = 0; a < avenuePositions.length; a++) {
     const ax = avenuePositions[a];
     const isStartAve = a === spawnAveIdx;
+    const isRiverAvenue = a === 0 || a === avenuePositions.length - 1;
+    const isCenterAvenue = a >= 2 && a <= 4;
     const segments = Math.max(9, Math.floor(numStreetRows / 4));
     const segHeight = (streetPositions[streetPositions.length - 1] - streetPositions[0]) / segments;
 
@@ -282,9 +286,22 @@ export function generateCityMap(
         continue;
       }
 
-      // In standard EASY mode (outside guide): only 1 vehicle every 3 segments
-      if (!isGuideMode && difficulty === 'easy' && s % 3 !== 0) {
-        continue;
+      // First vehicle gating by difficulty & grid zone (outside guide mode)
+      if (!isGuideMode) {
+        if (difficulty === 'easy') {
+          if (isRiverAvenue) {
+            // More vehicles right by the rivers (every 2nd segment)
+            if (s % 2 !== 0) continue;
+          } else if (isCenterAvenue) {
+            // Slightly fewer vehicles in the middle of the grid (every 4th segment)
+            if (s % 4 !== 0) continue;
+          } else {
+            if (s % 3 !== 0) continue;
+          }
+        } else if (difficulty === 'normal' && isCenterAvenue) {
+          // Slightly lighten primary patrol density in the middle of the grid
+          if ((a + s) % 5 === 0) continue;
+        }
       }
 
       // First vehicle in segment
@@ -310,47 +327,76 @@ export function generateCityMap(
         avenueOrStreetName: cfg.avenueNames[a % cfg.avenueNames.length],
       });
 
-      // Easy mode outside guide only needs 1 vehicle per active segment
-      if (!isGuideMode && difficulty === 'easy') {
-        continue;
+      // Second vehicle gating by difficulty & grid zone
+      let shouldSpawnSecondAve = false;
+      if (isGuideMode) {
+        shouldSpawnSecondAve = (a + s) % 2 === 0;
+      } else if (difficulty === 'easy') {
+        // Extra counter-traffic on river edges only (proportionate to Easy)
+        shouldSpawnSecondAve = isRiverAvenue && s % 4 === 0;
+      } else if (difficulty === 'normal') {
+        if (isRiverAvenue) {
+          // Both patrol vehicles active on every river-edge segment
+          shouldSpawnSecondAve = true;
+        } else if (isCenterAvenue) {
+          // Slightly fewer secondary vehicles in the middle of the grid
+          shouldSpawnSecondAve = (a + s) % 3 === 0;
+        } else {
+          shouldSpawnSecondAve = (a + s) % 2 === 0;
+        }
+      } else {
+        // Hard
+        if (isCenterAvenue) {
+          // Tiny reduction in center secondary vehicles (75% instead of 100%)
+          shouldSpawnSecondAve = (a + s) % 4 !== 0;
+        } else {
+          shouldSpawnSecondAve = true;
+        }
       }
 
-      // Normal mode: only spawn second vehicle on alternating segments (reduces obstacle density)
-      if (!isGuideMode && difficulty === 'normal' && (a + s) % 2 === 1) {
-        continue;
+      if (shouldSpawnSecondAve) {
+        const initialY2 = minY + (0.55 + ((a * 11 + s * 17) % 35) / 100) * (maxY - minY);
+        const spec2 = getVehicleConfig(obsId);
+        const baseSecSpeed = isGuideMode ? 1.3 : (difficulty === 'easy' ? 2.4 : difficulty === 'normal' ? 2.6 : 2.9);
+
+        obstacles.push({
+          id: `veh_ave_${obsId++}`,
+          type: 'taxi',
+          vehicleType: spec2.vehicleType,
+          x: ax,
+          y: initialY2,
+          direction: isRiverAvenue && difficulty === 'easy' ? (!goingDown ? 'DOWN' : 'UP') : (goingDown ? 'DOWN' : 'UP'),
+          speed: (baseSecSpeed + ((a * 2 + s) % 3) * (isGuideMode ? 0.15 : 0.35) + spec2.speedBonus * (isGuideMode ? 0.2 : 1)) * speedMult,
+          length: spec2.length,
+          width: spec2.width,
+          honking: false,
+          honkCooldown: 0,
+          minPos: minY,
+          maxPos: maxY,
+          avenueOrStreetName: cfg.avenueNames[a % cfg.avenueNames.length],
+        });
       }
 
-      // Guide mode: spawn second vehicle on alternating segments so there are more obstacles to encounter!
-      if (isGuideMode && (a + s) % 2 === 1) {
-        continue;
+      // Third patrol vehicle: reinforced along river edges (Normal & Hard), lightened in center (Hard)
+      let shouldSpawnThirdAve = false;
+      if (!isGuideMode) {
+        if (difficulty === 'normal' && isRiverAvenue) {
+          shouldSpawnThirdAve = s % 4 === 0;
+        } else if (difficulty === 'hard') {
+          if (isRiverAvenue) {
+            shouldSpawnThirdAve = (a + s) % 2 === 0;
+          } else if (isCenterAvenue) {
+            shouldSpawnThirdAve = (a + s) % 6 === 0;
+          } else {
+            shouldSpawnThirdAve = (a + s) % 4 === 0;
+          }
+        }
       }
 
-      // Second vehicle in segment (guide mode, normal, hard)
-      const initialY2 = minY + (0.55 + ((a * 11 + s * 17) % 35) / 100) * (maxY - minY);
-      const spec2 = getVehicleConfig(obsId);
-      const baseSecSpeed = isGuideMode ? 1.3 : (difficulty === 'normal' ? 2.6 : 2.9);
-
-      obstacles.push({
-        id: `veh_ave_${obsId++}`,
-        type: 'taxi',
-        vehicleType: spec2.vehicleType,
-        x: ax,
-        y: initialY2,
-        direction: goingDown ? 'DOWN' : 'UP',
-        speed: (baseSecSpeed + ((a * 2 + s) % 3) * (isGuideMode ? 0.15 : 0.35) + spec2.speedBonus * (isGuideMode ? 0.2 : 1)) * speedMult,
-        length: spec2.length,
-        width: spec2.width,
-        honking: false,
-        honkCooldown: 0,
-        minPos: minY,
-        maxPos: maxY,
-        avenueOrStreetName: cfg.avenueNames[a % cfg.avenueNames.length],
-      });
-
-      // Third vehicle on selected avenues for hard mode: only on every 4th segment
-      if (!isGuideMode && difficulty === 'hard' && (a + s) % 4 === 0) {
+      if (shouldSpawnThirdAve) {
         const initialY3 = minY + (0.8 + ((a * 5 + s * 9) % 15) / 100) * (maxY - minY);
         const spec3 = getVehicleConfig(obsId);
+        const baseThirdSpeed = difficulty === 'normal' ? 2.75 : 3.1;
 
         obstacles.push({
           id: `veh_ave_${obsId++}`,
@@ -359,7 +405,7 @@ export function generateCityMap(
           x: ax,
           y: initialY3,
           direction: !goingDown ? 'DOWN' : 'UP',
-          speed: (3.1 + (a % 3) * 0.3 + spec3.speedBonus) * speedMult,
+          speed: (baseThirdSpeed + (a % 3) * 0.3 + spec3.speedBonus) * speedMult,
           length: spec3.length,
           width: spec3.width,
           honking: false,
@@ -372,7 +418,7 @@ export function generateCityMap(
     }
   }
 
-  // B. Cross-street patrol vehicles: scaled by difficulty
+  // B. Cross-street patrol vehicles: scaled by difficulty (slightly lightened across the gridline)
   for (let row = 0; row < streetPositions.length; row++) {
     // Avoid blocking the exact spawn intersection at bottom
     if (row === streetPositions.length - 1) continue;
@@ -382,9 +428,9 @@ export function generateCityMap(
     const minX = avenuePositions[0];
     const maxX = avenuePositions[avenuePositions.length - 1];
 
-    // In standard EASY mode (outside guide): only 1 out of 3 cross-streets has a vehicle
+    // In standard EASY mode (outside guide): 1 out of 4 cross-streets has a vehicle
     if (!isGuideMode && difficulty === 'easy') {
-      if (row % 3 !== 0) continue;
+      if (row % 4 !== 0) continue;
       const initialX1 = minX + (((row * 43) % 75) / 100) * (maxX - minX);
       const specS1 = getVehicleConfig(obsId);
 
@@ -407,8 +453,13 @@ export function generateCityMap(
       continue;
     }
 
-    // In NORMAL mode: leave every 4th cross-street empty for clear maneuverability
-    if (!isGuideMode && difficulty === 'normal' && row % 4 === 0) {
+    // In NORMAL mode: leave every 3rd cross-street open for slightly cleaner middle-grid weaving
+    if (!isGuideMode && difficulty === 'normal' && row % 3 === 0) {
+      continue;
+    }
+
+    // In HARD mode: leave every 6th cross-street open for a subtle reduction in mid-grid congestion
+    if (!isGuideMode && difficulty === 'hard' && row % 6 === 0) {
       continue;
     }
 
@@ -435,13 +486,13 @@ export function generateCityMap(
     });
 
     // Secondary vehicle on cross-street:
-    // In Guide Mode: add secondary vehicle on alternating rows row % 2 === 0
-    // In Normal: only on row % 3 === 0
-    // In Hard: on row % 2 === 0
+    // In Guide Mode: row % 2 === 0
+    // In Normal: row % 4 === 0 (slightly fewer across the middle)
+    // In Hard: row % 2 === 0
     const shouldSpawnSecondSt = isGuideMode
       ? row % 2 === 0
       : difficulty === 'normal'
-      ? row % 3 === 0
+      ? row % 4 === 0
       : row % 2 === 0;
 
     if (shouldSpawnSecondSt) {
@@ -467,8 +518,8 @@ export function generateCityMap(
       });
     }
 
-    // Third vehicle for Hard cross-streets: only on row % 5 === 0
-    if (!isGuideMode && difficulty === 'hard' && row % 5 === 0) {
+    // Third vehicle for Hard cross-streets: only on row % 6 === 1 (subtle reduction)
+    if (!isGuideMode && difficulty === 'hard' && row % 6 === 1) {
       const initialX3 = minX + (((row * 17 + 25) % 65) / 100) * (maxX - minX);
       const specS3 = getVehicleConfig(obsId);
 
@@ -491,24 +542,31 @@ export function generateCityMap(
     }
   }
 
-  // C. Crowd Clusters with prominent Crowd Icons (slows character down) - scaled by difficulty
+  // C. Crowd Clusters with prominent Crowd Icons (slows character down) - scaled by difficulty & zone
+  // Denser along river-border avenues to prevent riverbank exploiting; slightly lighter in the middle grid.
   const palette = ['#334155', '#475569', '#1e293b', '#b45309', '#0369a1', '#15803d', '#3f3f46', '#7c2d12'];
   const hatPalette = ['#f59e0b', '#dc2626', '#3b82f6', '#10b981', '#f8fafc', '#18181b', '#d97706'];
 
   let crowdCount = 0;
   for (let row = 1; row < streetPositions.length - 2; row++) {
     for (let a = 0; a < avenuePositions.length; a++) {
+      const isRiverAvenue = a === 0 || a === avenuePositions.length - 1;
+      const isCenterAvenue = a >= 2 && a <= 4;
       let isCrowdLoc = false;
+
       if (isGuideMode) {
         // More crowds in guide mode so players learn about crowd slow-down
         isCrowdLoc = (row * 7 + a * 13) % 11 === 0;
       } else if (difficulty === 'easy') {
-        isCrowdLoc = (row * 7 + a * 13) % 29 === 0;
+        const mod = isRiverAvenue ? 14 : isCenterAvenue ? 37 : 29;
+        isCrowdLoc = (row * 7 + a * 13) % mod === 0;
       } else if (difficulty === 'normal') {
-        isCrowdLoc = (row * 7 + a * 13) % 24 === 0;
+        const mod = isRiverAvenue ? 9 : isCenterAvenue ? 30 : 24;
+        isCrowdLoc = (row * 7 + a * 13) % mod === 0;
       } else {
         // hard
-        isCrowdLoc = (row * 7 + a * 13) % 16 === 0;
+        const mod = isRiverAvenue ? 6 : isCenterAvenue ? 20 : 16;
+        isCrowdLoc = (row * 7 + a * 13) % mod === 0;
       }
 
       // Keep starting intersection and immediate vicinity safe from crowds

@@ -40,8 +40,8 @@ interface GameCanvasProps {
   onFirstObstacleNear?: () => void;
 }
 
-// Snappy, continuous running pace
-const DEFAULT_SPEED = 5.2;
+// Measured, responsive running pace across all levels
+const DEFAULT_SPEED = 4.55;
 
 export const GameCanvas: React.FC<GameCanvasProps> = ({
   district,
@@ -501,7 +501,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           const baseStormSpeed = isGuideMode ? 0.65 : diffConfig.rainstormBaseSpeed;
           const fogSpeed = isGuideMode
             ? 0.65
-            : baseStormSpeed + Math.min(1.0, (stats.distanceFeet / 8000) * 0.65);
+            : baseStormSpeed + Math.min(0.8, (stats.distanceFeet / 8000) * 0.55);
           fogYRef.current -= fogSpeed * (dt * 60);
         }
 
