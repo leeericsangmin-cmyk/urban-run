@@ -345,6 +345,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const loop = (currentTime: number) => {
       const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
       lastTime = currentTime;
+      const frameScale = dt * 60;
 
       const canvas = canvasRef.current;
       if (!canvas) {
@@ -402,7 +403,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           p.speed = p.baseSpeed;
         }
 
-        p.walkCycle += p.speed * 0.18;
+        p.walkCycle += p.speed * 0.18 * frameScale;
         sounds.playFootstep();
 
         // Low-patience audio alert when patience drops to 25% or below
@@ -444,13 +445,14 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           }
         }
 
-        // 2. Continuous Rapid Movement Forward
+        // 2. Continuous Rapid Movement Forward (frame-rate independent)
+        const moveStep = p.speed * frameScale;
         let vx = 0;
         let vy = 0;
-        if (p.direction === 'UP') vy = -p.speed;
-        if (p.direction === 'DOWN') vy = p.speed;
-        if (p.direction === 'LEFT') vx = -p.speed;
-        if (p.direction === 'RIGHT') vx = p.speed;
+        if (p.direction === 'UP') vy = -moveStep;
+        if (p.direction === 'DOWN') vy = moveStep;
+        if (p.direction === 'LEFT') vx = -moveStep;
+        if (p.direction === 'RIGHT') vx = moveStep;
 
         const nextX = p.x + vx;
         const nextY = p.y + vy;
@@ -562,24 +564,25 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           });
         }
 
-        stats.distanceFeet += p.speed * 1.0;
+        stats.distanceFeet += moveStep;
         stats.score += dt; // Score is survival duration in seconds
         stats.blocksTraversed = Math.floor(stats.distanceFeet / 250);
 
         // 4. Urban Obstacles: Native lightweight vanilla JS collision math
         map.obstacles.forEach((obs) => {
           if (obs.type === 'taxi') {
+            const obsStep = obs.speed * frameScale;
             if (obs.direction === 'DOWN') {
-              obs.y += obs.speed;
+              obs.y += obsStep;
               if (obs.y > obs.maxPos) obs.y = obs.minPos;
             } else if (obs.direction === 'UP') {
-              obs.y -= obs.speed;
+              obs.y -= obsStep;
               if (obs.y < obs.minPos) obs.y = obs.maxPos;
             } else if (obs.direction === 'RIGHT') {
-              obs.x += obs.speed;
+              obs.x += obsStep;
               if (obs.x > obs.maxPos) obs.x = obs.minPos;
             } else if (obs.direction === 'LEFT') {
-              obs.x -= obs.speed;
+              obs.x -= obsStep;
               if (obs.x < obs.minPos) obs.x = obs.maxPos;
             }
 
@@ -658,18 +661,19 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           onGameOver({ ...stats });
         }
 
+        const particleDrag = Math.pow(0.94, frameScale);
         particlesRef.current = particlesRef.current.filter((particle) => {
-          particle.life += 1;
-          particle.x += particle.vx;
-          particle.y += particle.vy;
-          particle.vx *= 0.94;
-          particle.vy *= 0.94;
+          particle.life += frameScale;
+          particle.x += particle.vx * frameScale;
+          particle.y += particle.vy * frameScale;
+          particle.vx *= particleDrag;
+          particle.vy *= particleDrag;
           return particle.life < particle.maxLife;
         });
 
         floatingTextsRef.current = floatingTextsRef.current.filter((ft) => {
-          ft.life += 1;
-          ft.y -= 0.7;
+          ft.life += frameScale;
+          ft.y -= 0.7 * frameScale;
           return ft.life < ft.maxLife;
         });
 
@@ -677,9 +681,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         onUpdateStats({ ...stats });
       }
 
-      // Camera Following
-      cameraRef.current.x += (p.x - cameraRef.current.x) * 0.16;
-      cameraRef.current.y += (p.y - cameraRef.current.y) * 0.16;
+      // Camera Following (frame-rate independent smoothing)
+      const camLerp = 1 - Math.pow(1 - 0.16, frameScale);
+      cameraRef.current.x += (p.x - cameraRef.current.x) * camLerp;
+      cameraRef.current.y += (p.y - cameraRef.current.y) * camLerp;
 
       // Render Pass
       ctx.save();
