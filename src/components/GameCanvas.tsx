@@ -42,9 +42,9 @@ interface GameCanvasProps {
 
 // Measured, responsive running pace across all levels
 const DEFAULT_SPEED = 4.55;
-// Slight speed boost when holding a direction key (desktop) or sliding/holding in a direction (mobile)
-const HOLD_BOOST_MULTIPLIER = 1.22;
-const SWIPE_BOOST_DURATION = 0.45;
+// Slight speed boost when holding a direction/control key (desktop) or sliding/holding in a direction (mobile)
+const HOLD_BOOST_MULTIPLIER = 1.3;
+const SWIPE_BOOST_DURATION = 0.65;
 
 export const GameCanvas: React.FC<GameCanvasProps> = ({
   district,
@@ -96,6 +96,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const cameraRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const heldDirectionsRef = useRef<Set<Direction>>(new Set());
+  const isCtrlHeldRef = useRef<boolean>(false);
   const touchHeldDirectionRef = useRef<Direction>('NONE');
   const swipeBoostDirRef = useRef<Direction>('NONE');
   const swipeBoostTimerRef = useRef<number>(0);
@@ -156,6 +157,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     particlesRef.current = [];
     floatingTextsRef.current = [];
     heldDirectionsRef.current.clear();
+    isCtrlHeldRef.current = false;
     touchHeldDirectionRef.current = 'NONE';
     swipeBoostDirRef.current = 'NONE';
     swipeBoostTimerRef.current = 0;
@@ -165,6 +167,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   useEffect(() => {
     if (isPaused) {
       heldDirectionsRef.current.clear();
+      isCtrlHeldRef.current = false;
       touchHeldDirectionRef.current = 'NONE';
       swipeBoostTimerRef.current = 0;
     }
@@ -199,27 +202,37 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     p.nextDirection = newDir;
   }, []);
 
-  // Keyboard controls: Arrow keys and WASD (tap to steer, hold to move slightly faster in that direction)
+  // Keyboard controls: Arrow keys and WASD (tap to steer, hold directional key or Ctrl to move slightly faster)
   useEffect(() => {
-    const keyToDirection = (key: string): Direction => {
-      switch (key) {
+    const eventToDirection = (e: KeyboardEvent): Direction => {
+      switch (e.code) {
         case 'ArrowUp':
         case 'KeyW':
+          return 'UP';
+        case 'ArrowDown':
+        case 'KeyS':
+          return 'DOWN';
+        case 'ArrowLeft':
+        case 'KeyA':
+          return 'LEFT';
+        case 'ArrowRight':
+        case 'KeyD':
+          return 'RIGHT';
+      }
+      switch (e.key) {
+        case 'ArrowUp':
         case 'w':
         case 'W':
           return 'UP';
         case 'ArrowDown':
-        case 'KeyS':
         case 's':
         case 'S':
           return 'DOWN';
         case 'ArrowLeft':
-        case 'KeyA':
         case 'a':
         case 'A':
           return 'LEFT';
         case 'ArrowRight':
-        case 'KeyD':
         case 'd':
         case 'D':
           return 'RIGHT';
@@ -229,7 +242,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const dir = keyToDirection(e.key);
+      if (e.key === 'Control' || e.code === 'ControlLeft' || e.code === 'ControlRight') {
+        isCtrlHeldRef.current = true;
+      }
+      const dir = eventToDirection(e);
       if (dir !== 'NONE') {
         e.preventDefault();
         heldDirectionsRef.current.add(dir);
@@ -240,7 +256,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      const dir = keyToDirection(e.key);
+      if (e.key === 'Control' || e.code === 'ControlLeft' || e.code === 'ControlRight') {
+        isCtrlHeldRef.current = false;
+      }
+      const dir = eventToDirection(e);
       if (dir !== 'NONE') {
         heldDirectionsRef.current.delete(dir);
       }
@@ -248,6 +267,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
 
     const handleBlur = () => {
       heldDirectionsRef.current.clear();
+      isCtrlHeldRef.current = false;
       touchHeldDirectionRef.current = 'NONE';
     };
 
@@ -297,7 +317,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     const touch = e.touches[0];
     const dx = touch.clientX - touchStartRef.current.x;
     const dy = touch.clientY - touchStartRef.current.y;
-    const minDistance = 20;
+    const minDistance = 16;
 
     if (Math.abs(dx) >= minDistance || Math.abs(dy) >= minDistance) {
       const dir: Direction =
@@ -446,7 +466,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           swipeBoostTimerRef.current = Math.max(0, swipeBoostTimerRef.current - dt);
         }
 
-        const isDesktopHolding = heldDirectionsRef.current.has(p.direction);
+        const isDesktopHolding =
+          heldDirectionsRef.current.has(p.direction) || isCtrlHeldRef.current;
         const isMobileSliding =
           touchHeldDirectionRef.current === p.direction ||
           (swipeBoostTimerRef.current > 0 && swipeBoostDirRef.current === p.direction);
@@ -851,7 +872,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     >
       <canvas
         ref={canvasRef}
-        className="w-full h-full block"
+        className="w-full h-full block touch-none"
       />
     </div>
   );

@@ -48,9 +48,9 @@ export const ControlsOverlay: React.FC<ControlsOverlayProps> = ({
         <div className="flex flex-wrap items-center justify-center gap-2 bg-[#faf8f3]/95 backdrop-blur-xs border border-[#2b2b2e]/30 px-3.5 py-1.5 rounded-md text-xs text-[#4b4b50] shadow-xs text-center">
           <Keyboard className="w-3.5 h-3.5 text-[#202024] shrink-0" />
           <span className="font-sketch font-bold text-[#202024]">KEYBOARD CONTROLS:</span>
-          <span>Arrow Keys or [W A S D] to turn</span>
+          <span>Arrow Keys or [W A S D] to turn (Hold key to go faster)</span>
           <span aria-hidden="true" className="text-[#a0a0a5]">·</span>
-          <span className="font-sketch font-bold text-[#1e1e20]">On mobile: Swipe Up, Down, Left, Right</span>
+          <span className="font-sketch font-bold text-[#1e1e20]">On mobile: Swipe &amp; hold to boost</span>
           <span aria-hidden="true" className="text-[#a0a0a5]">·</span>
           <span>Space to Pause</span>
         </div>
@@ -67,7 +67,7 @@ export const ControlsOverlay: React.FC<ControlsOverlayProps> = ({
           MOBILE CONTROLS:
         </span>
         <span className="font-sketch font-medium text-[#3b3b40]">
-          Swipe Up, Down, Left, Right (⬆️ ⬇️ ⬅️ ➡️) anywhere on screen
+          Swipe &amp; slide (⬆️ ⬇️ ⬅️ ➡️) to turn &amp; go faster
         </span>
       </div>
     </div>

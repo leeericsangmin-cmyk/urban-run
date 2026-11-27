@@ -671,6 +671,14 @@ export function renderAerialStickman(
   ctx.fill();
   ctx.restore();
 
+  // 1B. Subtle hand-drawn graphite speed streaks while holding/sliding to boost
+  if (player.speedBoostTimer > 0 && player.slowTimer <= 0) {
+    const streakPulse = (now * 0.03) % 4;
+    drawSketchLine(ctx, -11 - streakPulse, -7, -20 - streakPulse, -7, 'rgba(43, 43, 46, 0.45)', 1.4);
+    drawSketchLine(ctx, -13 - streakPulse, 0, -24 - streakPulse, 0, 'rgba(43, 43, 46, 0.55)', 1.6);
+    drawSketchLine(ctx, -11 - streakPulse, 7, -20 - streakPulse, 7, 'rgba(43, 43, 46, 0.45)', 1.4);
+  }
+
   // 2. Line limbs: Legs (swinging line limbs extending to circular feet)
   // Left leg
   drawSketchLine(ctx, -2, -5, -2 + legSwing, -10, '#242426', 2.0);
